@@ -3,26 +3,10 @@ using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
 using UnityEngine.Rendering;
-using UnityEngine.Sprites;
-using DialogueSystem.Dialogue;
-using DialogueSystem.Dialogue.Data;
-using LocalizationSystem;
-using Npc.Parts;
-using Npc.Parts.Settings;
-using QuestSystem;
 using System.Collections.Generic;
-using ObjectBased.Shelf;
-using TMPro;
-using ObjectBased.UIElements;
-using ObjectBased.UIElements.ConfirmationWindow;
-using ObjectBased.UIElements.FloatingText;
-using System.Text.RegularExpressions;
 using System.IO;
 using System;
 using System.Reflection;
-using System.Linq;
-using ObjectBased.Garden.GrowingPot;
-using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 
 namespace CustomEvent
