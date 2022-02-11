@@ -8,6 +8,8 @@ using System.IO;
 using System;
 using System.Reflection;
 using Newtonsoft.Json;
+using System.Threading.Tasks;
+using UnityEngine.Networking;
 
 namespace CustomEvent
 {
@@ -17,7 +19,10 @@ namespace CustomEvent
         public static ManualLogSource Log { get; set; }
         public static string pluginLoc = System.IO.Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
+        public static GameObject AudioM;
+        public static AudioClip CurrentClip;
         public static List<GameObject> EventObjects = new List<GameObject>();
+
         public static Dictionary<string, Dictionary<string, bool>> EventGoals = new Dictionary<string, Dictionary<string, bool>>();
 
         private void Awake()
@@ -29,37 +34,103 @@ namespace CustomEvent
             Harmony.CreateAndPatchAll(typeof(Plugin));
         }
 
-        [HarmonyPostfix, HarmonyPatch(typeof(InputManager), "Update")]
-        public static void Init_Postfix()
+        [HarmonyPostfix, HarmonyPatch(typeof(RoomManager), "OnLoad")]
+        public static void OnLoad_Postfix()
         {
-            if (Input.GetKeyDown(KeyCode.C))
+            CreateEvent();
+            foreach (GameObject eo in EventObjects)
             {
-                Log.LogInfo(EventObjects.Count);
+                string name = eo.name;
+                GameObject inact = GameObject.Find("Room Meeting");
+                GameObject inactObj = inact.transform.Find(name).gameObject;
+                eo.SetActive(false);
+                inactObj.SetActive(true);
             }
-            if(Input.GetKeyDown(KeyCode.M))
-            {
-                Dictionary<string, Data.EventObject> custObj;
-                custObj = GetObjectDictionary();
-                
-                foreach (var item in custObj)
-                {
-                    var key = item.Key;
-                    var cObject = item.Value;
+        }
 
-                    CreateCustomObject(key, cObject.Room, cObject.Sprite, cObject.Rotation, new Vector3(cObject.Location[0], cObject.Location[1], cObject.Location[2]), cObject.XP, cObject.Goal[0], cObject.Goal[1]);
-                }
-                
+        public static void CreateEvent()
+        {
+            // Create audio holder for sounds
+            if (GameObject.Find("AudioHolder") == null)
+            {
+                AudioM = new GameObject("AudioHolder");
+                AudioM.AddComponent<AudioSource>();
+                AudioM.SetActive(true);
+                Log.LogInfo("AudioHolder object created");
             }
+            else
+            {
+                Log.LogInfo("AudioHolder is already created!");
+            }
+
+            // Load objects into dictionary
+            Dictionary<string, Data.EventObject> custObj;
+            custObj = GetObjectDictionary();
+
+            // Loop through dictionary
+            foreach (var item in custObj)
+            {
+                string name = item.Key;
+                var co = item.Value;
+                string room = co.Room;
+                string sprite = co.Sprite;
+                float rotation = co.Rotation;
+                Vector3 location = new Vector3(co.Location[0], co.Location[1], co.Location[2]);
+                float xp = co.XP;
+                string goalName = co.Goal[0];
+                string goalDesc = co.Goal[1];
+                string sound = co.Sound;
+
+                CreateCustomObject(name, room, sprite, rotation, location, xp, goalName, goalDesc, sound);
+            }
+        }
+
+        public static async void PlayClip(string sndlocation)
+        {
+            // Load the sound from file
+            CurrentClip = await LoadClip(pluginLoc + sndlocation);
+        }
+
+        public static async Task<AudioClip> LoadClip(string path)
+        {
+            AudioClip clip = null;
+            using (UnityWebRequest uwr = UnityWebRequestMultimedia.GetAudioClip(path, AudioType.WAV))
+            {
+                uwr.SendWebRequest();
+
+                // wrap tasks in try/catch, otherwise it'll fail silently
+                try
+                {
+                    while (!uwr.isDone) await Task.Delay(5);
+
+                    if (uwr.result == UnityWebRequest.Result.ConnectionError) Debug.Log($"{uwr.error}");
+                    else
+                    {
+                        clip = DownloadHandlerAudioClip.GetContent(uwr);
+                    }
+                }
+                catch (Exception err)
+                {
+                    Debug.Log($"{err.Message}, {err.StackTrace}");
+                }
+            }
+
+            return clip;
         }
 
         public static Dictionary<string, Data.EventObject> GetObjectDictionary()
         {
+            // Turn JSON file into a JSON string
             string jsonString = File.ReadAllText(pluginLoc + "/objects.json");
+
+            // Convert it into a dictionary
             var dictionary = JsonConvert.DeserializeObject<Dictionary<string, Data.EventObject>>(jsonString);
+
+            // Return the dictionary
             return dictionary;
         }
 
-        public static void CreateCustomObject(string name, string room, string textureLocation, float angle, Vector3 position, float xp, string goalName, string goalDescription)
+        public static void CreateCustomObject(string name, string room, string textureLocation, float angle, Vector3 position, float xp, string goalName, string goalDescription, string sound)
         {
             // Load texture and create the sprite
             Texture2D tex = LoadTextureFromFile(pluginLoc + textureLocation);
@@ -84,6 +155,9 @@ namespace CustomEvent
             // Add the sorting group and adjust layer ID
             var sg = customObj.AddComponent<SortingGroup>();
             sg.sortingLayerID = -2145782171;
+
+            // Load the sound
+            PlayClip(sound);
             
             // Add our custom behaviour
             customObj.AddComponent<Custom.CustomClick>();
@@ -110,7 +184,7 @@ namespace CustomEvent
             // Activate the new object
             customObj.SetActive(true);
 
-            Debug.Log(name + " object created at " + customObj.transform.localPosition);
+            Debug.Log(name + " object created at " + customObj.transform.localPosition + " in " + room);
             EventObjects.Add(customObj.gameObject);
         }
 

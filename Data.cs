@@ -24,6 +24,9 @@ namespace CustomEvent
 
             [JsonProperty("Goal")]
             public List<string> Goal { get; set; }
+
+            [JsonProperty("Sound")]
+            public string Sound { get; set; }
         }
     }
 }
